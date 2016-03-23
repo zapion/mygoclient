@@ -4,6 +4,7 @@ import sys
 import threading
 import asyncore
 import json
+from rule import DataParser
 from go_socket import GoSocket
 
 
@@ -39,15 +40,17 @@ class Command():
 
 class Client():
     def __init__(self, options=None):
-        self.user = 'zapbot'
-        self.password = '12345'
+        self.user = None
+        self.password = None
         if options:
             self.context = options
         else:
             self.context = {
                 'success': empty,
             }
-        self.context['game'] = Game(self.user)
+        game = Game(self.user)
+        self.context['game'] = game
+        self.context['dataparser'] = DataParser(game)
         # TODO: add an option here to enable debug mode
         self.sock = GoSocket(self.context)
 
@@ -92,12 +95,6 @@ class RawInput(threading.Thread):
                 self.go_socket.buffer = send_data
 
 
-class RuleHandler(object):
-    @staticmethod
-    def parse(line):
-        raise NotImplemented
-
-
 class Game(object):
     '''
     storing data
@@ -105,50 +102,12 @@ class Game(object):
     def __init__(self, username):
         self.username = username
         self.inplay = False
-        self.board = []
+        self.observer = {}  # game no., players name, ....
+        self.komi = None
+        self.handi = None
+        self.board = []  # moves, captures, score, buf
         self.player_list = []
         self.game_list = []
-
-
-class BoardUpdate(RuleHandler):
-    @staticmethod
-    def parse(line):
-        pass
-
-
-class signum():
-    '''
-    This class is mostly a memo for strange numbers
-    '''
-    info = 1  # '1 1' is prompt login, '1 5' connect info
-    invalid_password = 5
-    game_info = 7
-    game_end = 9
-    game_stat = 15
-    stored_game = 18
-    game_result = 20
-    connect = 21
-    add_score = 22
-    opponent = 24
-    player_info = 27
-    undid = 28
-    match_request = 36
-    entry = 39
-    adjourn = 48
-    game_update = 49
-
-
-class DataParser(object):
-    rule_handlers = []
-
-    def __init__(self, options):
-        self.context = options
-
-    def parse(self, data):
-        lines = data.splitlines()
-        for line in lines:
-            for rule in self.rule_handlers:
-                rule.parse(line)
 
 
 if __name__ == '__main__':
