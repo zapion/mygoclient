@@ -59,11 +59,7 @@ class GoSocket(asyncore.dispatcher):
         port = kwargs['port']
         logger.info("connect to [{0}:{1}]".format(host, port))
         asyncore.dispatcher.connect(self, (host, port))
-        if kwargs.get('options'):
-            options = kwargs.get('options')
-        else:
-            options = {}
-        self.callback(self, options)
+        self.connect_kwargs = kwargs
 
     def disconnect(self):
         self.send('quit\n')
@@ -76,10 +72,21 @@ class GoSocket(asyncore.dispatcher):
             self.handle_connect = options.get('success')
 
     def handle_connect(self):
-        pass
+        kwargs = self.connect_kwargs
+        self.connect_kwargs = None
+        if kwargs.get('options'):
+            options = kwargs.get('options')
+        else:
+            options = {}
+        logger.debug(self.recv(MAX_RECV))
+        kwargs['callback'](self, options)
 
     def handle_close(self):
-        self.close()
+        logger.info("connection closed")
+        # self.close()
+
+    # def handle_error(self):
+    #     logger.error("Unknown Error")
 
     def writable(self):
         return (len(self.buffer) > 0)
@@ -93,8 +100,7 @@ class GoSocket(asyncore.dispatcher):
 
     def handle_read(self):
         data = self.recv(MAX_RECV)
-        logger.debug(data)
-        if self.callback:
+        if self.__dict__.get('callback'):
             self.callback(data)
-        else:
+        elif self.__dict__.get('fallback'):
             self.fallback()

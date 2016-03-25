@@ -1,11 +1,22 @@
 #!/usr/bin/python
 
+
 import sys
+import time
 import threading
 import asyncore
 import json
-from rule import DataParser
+import logging
+from rules import DataParser
 from go_socket import GoSocket
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s |%(name)s| %(message)s',
+    filename='/tmp/mygoclient.log',
+    filemode='a',
+)
+logger = logging.getLogger(__name__)
 
 
 def empty(*args):
@@ -22,13 +33,10 @@ class Command():
             sock.handle_write()
         else:
             raise AttributeError('user not specified')
-        # read here for test
-        sock.handle_read()
         if password:
             sock.buffer = password
             sock.handle_write()
-        # read here for test
-        sock.handle_read()
+        sock.callback = context.get('callback')
 
     @staticmethod
     def list_games(sock, context):
@@ -37,11 +45,17 @@ class Command():
         if sock.writable():
             sock.buffer = command
 
+    @staticmethod
+    def list_players(sock, context):
+        # send list games command
+        command = 'who'
+        sock.buffer = command
+
 
 class Client():
     def __init__(self, options=None):
-        self.user = None
-        self.password = None
+        self.user = options.get('user')
+        self.password = options.get('password')
         if options:
             self.context = options
         else:
@@ -50,8 +64,9 @@ class Client():
             }
         game = Game(self.user)
         self.context['game'] = game
-        self.context['dataparser'] = DataParser(game)
+        self.parser = DataParser(game)
         # TODO: add an option here to enable debug mode
+        self.context['callback'] = self.parser.parse
         self.sock = GoSocket(self.context)
 
     def connect(self, options=None):
@@ -64,14 +79,18 @@ class Client():
                   'callback': Command.authenticate,
                   'options': {'user': self.user,
                               'password': self.password,
+                              'callback': self.parser.parse
                               },
                   }
         self.sock.connect(**kwargs)
         # self.input_thread.start()
-        asyncore.loop()
+        logger.debug('connection setup successfully')
 
     def disconnect(self):
         self.sock.disconnect()
+
+    def command(self, name, context=None):
+        Command.__dict__.get(name).__func__(self.sock, context)
 
 
 class TestInput(threading.Thread):
@@ -80,7 +99,10 @@ class TestInput(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        pass
+        while True:
+            self.go_socket.buffer = "who"
+            time.sleep(2)
+            logger.info(self.go_socket.buffer)
 
 
 class RawInput(threading.Thread):
@@ -113,4 +135,9 @@ class Game(object):
 if __name__ == '__main__':
     config = json.load(open("config.json"))
     cc = Client(config)
+    bot = TestInput(cc)
     cc.connect()
+    bot.start()
+    asyncore.loop()
+    cc.command('list_players')
+    print 'abc'
