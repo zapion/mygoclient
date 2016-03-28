@@ -84,7 +84,7 @@ class Client():
                   }
         self.sock.connect(**kwargs)
         # self.input_thread.start()
-        logger.debug('connection setup successfully')
+        logger.info('connection setup successfully')
 
     def disconnect(self):
         self.sock.disconnect()
@@ -94,15 +94,21 @@ class Client():
 
 
 class TestInput(threading.Thread):
-    def __init__(self, go_socket):
-        self.go_socket = go_socket
+    '''
+    input source for command testing
+    '''
+    def __init__(self, go_client, stop_event):
+        self.go_client = go_client
+        self.sock = go_client.sock
+        self.stop = stop_event
         threading.Thread.__init__(self)
 
     def run(self):
-        while True:
-            self.go_socket.buffer = "who"
-            time.sleep(2)
-            logger.info(self.go_socket.buffer)
+        while not self.stop.isSet():
+            logger.debug("who command fired")
+            self.sock.buffer = "who"
+            time.sleep(5)
+            logger.info(self.sock.buffer)
 
 
 class RawInput(threading.Thread):
@@ -128,16 +134,20 @@ class Game(object):
         self.komi = None
         self.handi = None
         self.board = []  # moves, captures, score, buf
-        self.player_list = []
+        self.player_list = {}
         self.game_list = []
 
 
 if __name__ == '__main__':
+    stop_event = threading.Event()
     config = json.load(open("config.json"))
     cc = Client(config)
-    bot = TestInput(cc)
-    cc.connect()
-    bot.start()
-    asyncore.loop()
-    cc.command('list_players')
-    print 'abc'
+    bot = TestInput(go_client=cc, stop_event=stop_event)
+    try:
+        cc.connect()
+        bot.start()
+        asyncore.loop()
+        cc.command('list_players')
+        print 'abc'
+    except KeyboardInterrupt:
+        stop_event.set()

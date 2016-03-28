@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import logging
+import re
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s %(levelname)s |%(name)s| %(message)s',
@@ -70,8 +71,60 @@ class GameStat(Rule):
 
 
 class PlayerInfo(Rule):
+    def __init__(self, game):
+        Rule.__init__(self, game)
+        self.players = {}
+
+    def load_raw_info(self, raw):
+        info = {}
+        raw = filter(lambda x: x, raw.split(' '))
+        if len(raw) < 5:
+            # remove dummy player
+            return None
+        result = re.search('.*(--|[0-9]+)', raw[0])
+        if result:
+            raw.insert(1, result.group(1))
+        try:
+            opts = raw[0]
+            if 'Q' in opts:
+                info['quiet'] = True
+            if 'S' in opts:
+                info['noshout'] = True
+            if 'X' in opts:
+                info['closed'] = True
+            if '!' in opts:
+                info['searching'] = True
+            if '--' not in raw[1]:
+                info['observing'] = int(raw[1])
+            if '--' not in raw[2]:
+                logger.debug(raw[2])
+                info['playing'] = int(raw[2])
+            info['name'] = raw[3]
+            info['idle'] = raw[4]
+            info['rank'] = raw[5]
+        except IndexError as e:
+            # mostly corrupted data
+            logger.error(e.message)
+
     def parse(self, line):
-        logger.debug(line)
+        # logger.debug("parsing: " + line)
+        if 'Info' in line and 'Rank' in line:
+            return True
+        if '******' in line:  # end parsing and flush result
+            self.game.player_list.update(self.players)
+            self.players = {}
+            return True
+
+        # update self.game.player_list after finished
+        result = re.search('27\s+(\S.*)', line)
+        if result:
+            raw_info = result.group(1).split("|")
+
+            for raw in raw_info:
+                info = self.load_raw_info(raw)
+                if info:
+                    self.players[info['name']] = info
+        return True
 
 
 class MatchRequest(Rule):

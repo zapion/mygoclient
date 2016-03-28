@@ -3,6 +3,7 @@
 import asyncore
 import socket
 import logging
+import errno
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -64,21 +65,12 @@ class GoSocket(asyncore.dispatcher):
     def disconnect(self):
         self.send('quit\n')
 
-    def run(self, options):
-        if options.fallback:
-            self.fallback = options.fallback
-        self.fallback = empty
-        if options.get('success'):
-            self.handle_connect = options.get('success')
-
     def handle_connect(self):
         kwargs = self.connect_kwargs
-        self.connect_kwargs = None
         if kwargs.get('options'):
             options = kwargs.get('options')
         else:
             options = {}
-        logger.debug(self.recv(MAX_RECV))
         kwargs['callback'](self, options)
 
     def handle_close(self):
@@ -99,8 +91,16 @@ class GoSocket(asyncore.dispatcher):
             self.buffer = self.buffer[sent:]
 
     def handle_read(self):
-        data = self.recv(MAX_RECV)
-        if self.__dict__.get('callback'):
-            self.callback(data)
-        elif self.__dict__.get('fallback'):
-            self.fallback()
+        data = ''
+        try:
+            data = self.recv(MAX_RECV)
+        except socket.error as e:
+            # [Errno 35] Resource temporarily unavailable.
+            if e.errno == errno.EAGAIN:
+                # Means nothing to read, catch it on osx mostly
+                pass
+        if data:
+            if self.__dict__.get('callback'):
+                self.callback(data)
+            elif self.__dict__.get('fallback'):
+                self.fallback()
