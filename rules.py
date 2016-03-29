@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import logging
 import re
+import threading
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s %(levelname)s |%(name)s| %(message)s',
@@ -17,6 +18,7 @@ class signum():
     info = 1  # '1 1' is prompt login, '1 5' connect info
     invalid_password = 5
     game_info = 7
+    help_str = 8
     game_end = 9
     game_stat = 15
     stored_game = 18
@@ -53,7 +55,51 @@ class AddScore(Rule):
 
 
 class GameInfo(Rule):
-    pass
+    def __init__(self, game):
+        self.timer = None
+        self.game_list = {}
+        Rule.__init__(self, game)
+
+    def parse(self, line):
+        game_info = {}
+        if '###' in line:
+            self.timer = threading.Timer(5, self.summary)
+            self.timer.start()
+            return
+        line = line[2:]
+        result = re.search('\[ *([0-9]+)\]\s+(\S*)\s+\[(.*)\] vs', line)
+        try:
+            game_info['no.'] = result.group(1)
+            game_info['white'] = {'name': result.group(2),
+                                  'rank': result.group(3),
+                                  }
+            logger.error("1st section: " + line)
+            pattern = 'vs\.\s+(\S+) \[ *([^\]]*)\] \(([^\)]*)\) \((.*)\)'
+            result = re.search(pattern, line)
+            game_info['white'] = {'name': result.group(1),
+                                  'rank': result.group(2),
+                                  }
+            raw_info = filter(lambda x: x, result.group(3).split(" "))
+            game_info['move'] = int(raw_info[0])
+            game_info['size'] = int(raw_info[1])
+            game_info['handicap'] = int(raw_info[2])
+            game_info['komi'] = float(raw_info[3])
+            game_info['BY'] = raw_info[4]
+            game_info['FR'] = raw_info[5]
+            game_info['observer'] = int(result.group(4))
+            self.game_list[game_info['no.']] = game_info
+        except:
+            logger.error("fail when parsing: " + line)
+
+    def summary(self):
+        # TODO: update game list in self.game
+        self.game.game_list = self.game_list
+        logger.debug(self.game.game_list)
+        self.game_list = {}
+        if self.timer:
+            self.timer.cancel()
+        self.timer = None
+        return True
 
 
 class GameEnd(Rule):

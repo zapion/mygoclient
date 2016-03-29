@@ -27,9 +27,21 @@ def empty(*args):
 
 class Command():
     # reference:
-    # who, games, observe, chatter, kibitz, tell, shout, stats,
+    # who, games, observe, chatter(chat in game room),
+    # kibitz(comment in game room[recorded]), tell, shout, stats,
     #      rank, match, coords, toggle
     # TODO: move this class to a file
+
+    @staticmethod
+    def stats(sock, context):
+        '''
+        @in: playername: if not specified, query self stat
+        '''
+        cmd = 'stats'
+        if 'playername' in context:
+            cmd += context.get('playername')
+        sock.buffer = cmd
+
     @staticmethod
     def authenticate(sock, context):
         user = context.get('user')
@@ -47,9 +59,8 @@ class Command():
     @staticmethod
     def list_games(sock, context):
         # send list games command
-        command = ''
-        if sock.writable():
-            sock.buffer = command
+        command = 'games'
+        sock.buffer = command
 
     @staticmethod
     def list_players(sock, context):
@@ -60,8 +71,13 @@ class Command():
 
 class Client():
     def __init__(self, options=None):
+        self.expired = threading.Timer(1000, self.expire_handler)
+        self.expired.start()
         self.user = options.get('user')
         self.password = options.get('password')
+        self.keep_alive = True
+        if 'keep_alive' in options:
+            self.keep_alive = options.get('keep_alive')
         if options:
             self.context = options
         else:
@@ -74,6 +90,14 @@ class Client():
         # TODO: add an option here to enable debug mode
         self.context['callback'] = self.parser.parse
         self.sock = GoSocket(self.context)
+
+    def expire_handler(self):
+        if self.keep_alive:
+            self.expired.cancel()
+            self.expired = threading.Timer(1000, self.expire_handler)
+            self.expired.start()
+        else:
+            self.disconnect()
 
     def connect(self, options=None):
         if not options:
@@ -109,7 +133,7 @@ class Game(object):
         self.handi = None
         self.board = []  # moves, captures, score, ...
         self.player_list = {}
-        self.game_list = []
+        self.game_list = {}
 
 
 if __name__ == '__main__':
