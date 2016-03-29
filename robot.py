@@ -61,6 +61,7 @@ class RawInput(TestInput):
 
     def task(self):
         send_data = raw_input()
+        logger.debug("raw input received")
         if send_data:
             send_data = send_data.splitlines()[0]
             self.sock.buffer = send_data
