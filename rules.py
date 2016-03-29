@@ -107,12 +107,10 @@ class PlayerInfo(Rule):
             logger.error(e.message)
 
     def parse(self, line):
-        # logger.debug("parsing: " + line)
         if 'Info' in line and 'Rank' in line:
             return True
         if '******' in line:  # end parsing and flush result
-            self.game.player_list.update(self.players)
-            self.players = {}
+            self.game.player_list = self.players
             return True
 
         # update self.game.player_list after finished

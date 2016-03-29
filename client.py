@@ -2,13 +2,15 @@
 
 
 import sys
-import time
 import threading
 import asyncore
 import json
 import logging
 from rules import DataParser
 from go_socket import GoSocket
+# from robot import TestInput
+from robot import RawInput
+
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -24,6 +26,10 @@ def empty(*args):
 
 
 class Command():
+    # reference:
+    # who, games, observe, chatter, kibitz, tell, shout, stats,
+    #      rank, match, coords, toggle
+    # TODO: move this class to a file
     @staticmethod
     def authenticate(sock, context):
         user = context.get('user')
@@ -36,7 +42,7 @@ class Command():
         if password:
             sock.buffer = password
             sock.handle_write()
-        sock.callback = context.get('callback')
+        # sock.callback = context.get('callback')
 
     @staticmethod
     def list_games(sock, context):
@@ -75,15 +81,13 @@ class Client():
             options['success'] = empty
         kwargs = {'host': '210.155.158.200',
                   'port': 6969,
-                  # 'fallback': self.listen
                   'callback': Command.authenticate,
                   'options': {'user': self.user,
                               'password': self.password,
-                              'callback': self.parser.parse
+                              # 'callback': self.parser.parse
                               },
                   }
         self.sock.connect(**kwargs)
-        # self.input_thread.start()
         logger.info('connection setup successfully')
 
     def disconnect(self):
@@ -91,36 +95,6 @@ class Client():
 
     def command(self, name, context=None):
         Command.__dict__.get(name).__func__(self.sock, context)
-
-
-class TestInput(threading.Thread):
-    '''
-    input source for command testing
-    '''
-    def __init__(self, go_client, stop_event):
-        self.go_client = go_client
-        self.sock = go_client.sock
-        self.stop = stop_event
-        threading.Thread.__init__(self)
-
-    def run(self):
-        while not self.stop.isSet():
-            logger.debug("who command fired")
-            self.sock.buffer = "who"
-            time.sleep(5)
-            logger.info(self.sock.buffer)
-
-
-class RawInput(threading.Thread):
-    def __init__(self, go_socket):
-        self.go_socket = go_socket
-        threading.Thread.__init__(self)
-
-    def run(self):
-        while True:
-            send_data = raw_input()
-            if send_data:
-                self.go_socket.buffer = send_data
 
 
 class Game(object):
@@ -133,7 +107,7 @@ class Game(object):
         self.observer = {}  # game no., players name, ....
         self.komi = None
         self.handi = None
-        self.board = []  # moves, captures, score, buf
+        self.board = []  # moves, captures, score, ...
         self.player_list = {}
         self.game_list = []
 
@@ -142,12 +116,10 @@ if __name__ == '__main__':
     stop_event = threading.Event()
     config = json.load(open("config.json"))
     cc = Client(config)
-    bot = TestInput(go_client=cc, stop_event=stop_event)
+    bot = RawInput(go_client=cc, stop_event=stop_event)
     try:
         cc.connect()
         bot.start()
         asyncore.loop()
-        cc.command('list_players')
-        print 'abc'
     except KeyboardInterrupt:
         stop_event.set()

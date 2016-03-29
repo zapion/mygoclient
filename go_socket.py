@@ -15,29 +15,6 @@ logger = logging.getLogger(__name__)
 MAX_RECV = 8192
 
 
-class signum():
-    '''
-    This class is mostly a memo for strange numbers
-    '''
-
-    info = 1  # '1 1' is prompt login, '1 5' connect info
-    invalid_password = 5
-    game_info = 7
-    game_end = 9
-    game_stat = 15
-    stored_game = 18
-    game_result = 20
-    connect = 21
-    add_score = 22
-    opponent = 24
-    player_info = 27
-    undid = 28
-    match_request = 36
-    entry = 39
-    adjourn = 48
-    game_update = 49
-
-
 def empty(*args):
     pass
 
@@ -75,10 +52,6 @@ class GoSocket(asyncore.dispatcher):
 
     def handle_close(self):
         logger.info("connection closed")
-        # self.close()
-
-    # def handle_error(self):
-    #     logger.error("Unknown Error")
 
     def writable(self):
         return (len(self.buffer) > 0)
