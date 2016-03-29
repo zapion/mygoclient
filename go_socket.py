@@ -41,6 +41,7 @@ class GoSocket(asyncore.dispatcher):
 
     def disconnect(self):
         self.send('quit\n')
+        logger.info("disconnected from host")
 
     def handle_connect(self):
         kwargs = self.connect_kwargs

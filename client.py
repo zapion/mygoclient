@@ -8,8 +8,8 @@ import json
 import logging
 from rules import DataParser
 from go_socket import GoSocket
-# from robot import TestInput
-from robot import RawInput
+from robot import TestInput
+# from robot import RawInput
 
 
 logging.basicConfig(
@@ -75,6 +75,9 @@ class Client():
         self.context['callback'] = self.parser.parse
         self.sock = GoSocket(self.context)
 
+    def __del__(self):
+        self.sock.disconnect()
+
     def connect(self, options=None):
         if not options:
             options = {}
@@ -116,7 +119,7 @@ if __name__ == '__main__':
     stop_event = threading.Event()
     config = json.load(open("config.json"))
     cc = Client(config)
-    bot = RawInput(go_client=cc, stop_event=stop_event)
+    bot = TestInput(go_client=cc, stop_event=stop_event)
     try:
         cc.connect()
         bot.start()
