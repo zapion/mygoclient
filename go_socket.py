@@ -62,31 +62,30 @@ class GoSocket(asyncore.dispatcher):
             if not self.buffer.endswith("\n"):
                 self.buffer += "\n"
             sent = self.send(self.buffer)
+            logger.debug("flushing " + self.buffer)
             self.buffer = self.buffer[sent:]
 
     def handle_read(self):
-        data = self.recv_data
-        in_str = ''
         try:
-            in_str = self.recv(MAX_RECV)
-            while len(in_str) % 1448 == 0:
-                data += in_str.rstrip("\r\n")
-                in_str = self.recv(MAX_RECV)
+            self.recv_data += self.recv(MAX_RECV)
         except socket.error as e:
             # [Errno 35] Resource temporarily unavailable.
             if e.errno == errno.EAGAIN:
                 # Means nothing to read, catch it on osx mostly
                 pass
-        if data:
-            if data.endswith("\n"):
-                self.recv_data = ''
-            elif data.find("\n") > 0:
-                self.recv_data = data[data.rindex("\n") + 1:]
-                data = data[0: data.rindex("\n") + 1]
-            else:
+        data = self.recv_data
+        while data:
+            index = data.find("\n")
+            if index == -1:
+                logger.debug("wait for more:" + data)
                 self.recv_data = data
                 return
-            if self.__dict__.get('callback'):
-                self.callback(data)
-            elif self.__dict__.get('fallback'):
-                self.fallback()
+            elif index > 0:
+                if self.__dict__.get('callback'):
+                    self.callback(data[:index])
+                data = data[index + 1:]
+            else:
+                logger.error(data)
+                self.recv_data = ""
+                return
+        self.recv_data = data

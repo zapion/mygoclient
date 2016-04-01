@@ -110,8 +110,24 @@ class GameInfo(Parser):
 
 
 class SystemMessage(Parser):
+    def __init__(self, data_store, callback):
+        Parser.__init__(self, data_store, callback)
+
+    # 9 NMatch requested with sapphirez(N 0 19 60 300 25 0 0 0).
+    # 9 Use <nmatch sapphirez N 0 19 60 300 25 0 0 0> \
+    #    or <decline sapphirez> to respond.
     def parse(self, line):
-        pass
+        if 'NMatch' in line:
+            result = re.search('with (.*)\((.*)\)')
+            if result:
+                kwargs = {
+                    'opponent': result.group(1),
+                    'condition': result.group(2),
+                }
+                self.data_store.nmatch_request.append(kwargs)
+                self.callback('nmatch', kwargs)
+                return
+        logger.debug("system_message")
 
 
 class Alert(Parser):
@@ -201,6 +217,8 @@ class Opponent(Parser):
 class DataParser(object):
 
     def __init__(self, data_store):
+        self.inline = False
+        self.help_buffer = ""
         self.data_store = data_store
 
     def set_handlers(self, handlers):
@@ -208,7 +226,8 @@ class DataParser(object):
             signum.add_score: AddScore(self.data_store),
             signum.info: Filter(),
             signum.alert: Alert(self.data_store, handlers.alert_handler),
-            signum.system_message: SystemMessage(self.data_store),
+            signum.system_message: SystemMessage(self.data_store,
+                                                 handlers.sm_handler),
             signum.broadcast: Broadcast(self.data_store),
             signum.game_info: GameInfo(self.data_store),
             signum.game_stat: GameStat(self.data_store),
@@ -218,21 +237,32 @@ class DataParser(object):
             signum.entry: Entry(self.data_store, handlers.entry_handler),
         }
 
-    def parse(self, data):
-        lines = data.splitlines()
-        for line in lines:
-            try:
-                indi = int(line[0:2])
-            except ValueError:
-                logger.error("Failed to load: " + line)
-                indi = 1
-            # Drop if the indicator is not a number
-            line = line.strip()
-            if not line:
-                continue
-            for (num, parser) in self.parsers.items():
-                if indi == num:
-                    parser.parse(line)
+    def parse(self, line):
+        if re.search("[0-9]+ File", line):
+            # enable file parsing
+            if self.inline:
+                # finish parsing, flushing to log
+                self.inline = False
+                self.help_buffer = ""
+            else:
+                self.inline = True
+        if self.inline:
+            self.help_buffer += line
+            return
+        try:
+            indi = int(line[0:2])
+        except ValueError:
+            logger.error("Failed to load: " + line)
+            indi = 1
+
+        if not line:
+            return
+        for (num, parser) in self.parsers.items():
+            if indi == num:
+                parser.parse(line[3:].strip())
+                break
+        # Non handled case
+        logger.debug(line)
 
 
 class EventHandler(object):
@@ -243,6 +273,9 @@ class EventHandler(object):
     def alert_handler(self, line):
         pass
 
+    def sm_handler(self, state, context):
+        pass
+
     def entry_handler(self):
         '''
         deal with IGS setup merely
@@ -250,8 +283,8 @@ class EventHandler(object):
         '''
         logger.debug("triggering entry handler")
         sock = self.sock
-        sock.buffer = "id pythgo 0.0.1\n"
-        sock.buffer = "toggle newrating\n"
-        sock.buffer = "toggle nmatch true\n"
+        sock.buffer += "id pythgo 0.0.1\r\n"
+        sock.buffer += "toggle newrating\r\n"
+        sock.buffer += "toggle nmatch on\r\n"
         # send default nmatch range
-        sock.buffer = "nmatchrange BWN 0-9 19-19 60-60 60-3600 25-25 0 0 0-0"
+        sock.buffer += "nmatchrange BWN 0-9 19-19 60-60 60-3600 25-25 0 0 0-0"

@@ -34,6 +34,15 @@ class Command():
     # TODO: move this class to a file
 
     @staticmethod
+    def decline(sock, opponent):
+        sock.buffer += "decline {}".format(opponent)
+
+    @staticmethod
+    def accept_nmatch(sock, context):
+        opponent, condition = context['opponent'], context['condition']
+        sock.buffer += "nmatch {} {}".format(opponent, condition)
+
+    @staticmethod
     def stats(sock, context):
         '''
         @in: playername: if not specified, query self stat
@@ -45,6 +54,8 @@ class Command():
 
     @staticmethod
     def authenticate(sock, context):
+        data = sock.recv(8192)
+        logger.debug(data)
         user = context.get('user')
         password = context.get('password')
         # read welcome message
@@ -79,14 +90,14 @@ class Client():
     def __init__(self, options=None):
         # FIXME: temporarily remove keep alive, it causes raw_input can't
         # stop gracefully
-        self.expired = threading.Timer(1000, self.expire_handler)
-        self.expired.daemon = True
-        self.expired.start()
+        # self.expired = threading.Timer(1000, self.expire_handler)
+        # self.expired.daemon = True
+        # self.expired.start()
         self.user = options.get('user')
         self.password = options.get('password')
-        self.keep_alive = True
-        if 'keep_alive' in options:
-            self.keep_alive = options.get('keep_alive')
+        # self.keep_alive = True
+        # if 'keep_alive' in options:
+        #     self.keep_alive = options.get('keep_alive')
         if options:
             self.context = options
         else:
@@ -140,6 +151,7 @@ class DataStore(object):
     storing data
     '''
     def __init__(self, username):
+        self.nmatch_request = []
         self.username = username
         self.inplay = False
         self.observe = {}  # game no., players name, ....
@@ -159,7 +171,7 @@ if __name__ == '__main__':
     try:
         cc.connect()
         bot.start()
-        asyncore.loop()
+        asyncore.loop(timeout=0.1)
     except KeyboardInterrupt:
         stop_event.set()
         cc.disconnect()
